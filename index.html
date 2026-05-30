@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stedsnavn Suffix Søk</title>
+<title>Place Name Search</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -15,7 +15,14 @@ body { font-family:'Courier Prime',monospace; background:var(--ink); color:var(-
 header { background:var(--ink); border-bottom:3px solid var(--gold); padding:10px 18px; display:flex; align-items:center; gap:14px; flex-shrink:0; }
 header h1 { font-family:'Playfair Display',serif; font-size:1.2rem; }
 header h1 em { color:var(--gold); font-style:italic; }
-#file-info { font-size:0.68rem; opacity:0.4; margin-left:auto; }
+#file-info { font-size:0.68rem; opacity:0.4; margin-left:auto; display:flex; align-items:center; gap:10px; }
+#reload-btn {
+  background:transparent; border:1px solid rgba(201,168,76,0.4); color:var(--gold);
+  padding:3px 10px; font-family:'Courier Prime',monospace; font-size:0.68rem;
+  cursor:pointer; text-transform:uppercase; letter-spacing:0.08em;
+  display:none;
+}
+#reload-btn:hover { background:rgba(201,168,76,0.1); }
 
 #upload-screen { flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:20px; }
 .drop-zone { border:2px dashed var(--gold); padding:50px 70px; text-align:center; cursor:pointer; }
@@ -56,6 +63,15 @@ header h1 em { color:var(--gold); font-style:italic; }
 }
 .search-wrap button:hover { background:#b8963a; }
 
+/* Mode toggle */
+.mode-toggle { display:flex; gap:0; border:1px solid rgba(201,168,76,0.4); border-radius:2px; overflow:hidden; }
+.mode-btn {
+  background:transparent; color:rgba(255,255,255,0.45); border:none;
+  padding:4px 10px; font-family:'Courier Prime',monospace; font-size:0.72rem;
+  cursor:pointer; text-transform:uppercase; letter-spacing:0.06em; transition:all 0.12s;
+}
+.mode-btn.active { background:var(--gold); color:var(--ink); font-weight:700; }
+
 .fc-btn {
   background:transparent; border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.5);
   padding:3px 10px; font-family:'Courier Prime',monospace; font-size:0.72rem;
@@ -66,7 +82,7 @@ header h1 em { color:var(--gold); font-style:italic; }
 .main-layout { flex:1; display:flex; overflow:hidden; min-height:0; }
 #map { flex:1; min-width:0; }
 
-.sidebar { width:260px; min-width:260px; display:flex; flex-direction:column; border-left:2px solid var(--gold); overflow:hidden; }
+.sidebar { width:280px; min-width:280px; display:flex; flex-direction:column; border-left:2px solid var(--gold); overflow:hidden; }
 .sidebar-head { padding:9px 13px; border-bottom:1px solid rgba(201,168,76,0.2); font-size:0.62rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--gold); flex-shrink:0; }
 .sidebar-search { padding:7px 11px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
 .sidebar-search input { width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(201,168,76,0.3); color:var(--paper); padding:5px 8px; font-family:'Courier Prime',monospace; font-size:0.8rem; outline:none; }
@@ -92,8 +108,11 @@ header h1 em { color:var(--gold); font-style:italic; }
 <body>
 
 <header>
-  <h1>Place Name <em>Suffix</em> Search</h1>
-  <div id="file-info">Upload a GeoNames file</div>
+  <h1>Place Name <em>Search</em></h1>
+  <div id="file-info">
+    <span id="file-label">Upload a GeoNames file</span>
+    <button id="reload-btn" onclick="reloadFile()">↺ New file</button>
+  </div>
 </header>
 
 <div id="upload-screen">
@@ -101,6 +120,7 @@ header h1 em { color:var(--gold); font-style:italic; }
     <h2>Upload GeoNames file</h2>
     <p>Drag and drop file here, or click</p>
     <p style="margin-top:6px;font-size:0.72rem;opacity:0.35">NO.txt · SE.txt · IS.txt · BR.txt · etc.</p>
+    <p style="margin-top:12px;font-size:0.72rem;opacity:0.5">Download files from <a href="https://download.geonames.org/export/dump/" target="_blank" style="color:var(--gold);text-decoration:underline;" onclick="event.stopPropagation()">download.geonames.org</a></p>
   </div>
   <input type="file" id="file-input" accept=".txt">
   <button class="btn" onclick="document.getElementById('file-input').click()">Choose file</button>
@@ -114,12 +134,19 @@ header h1 em { color:var(--gold); font-style:italic; }
 <div id="app-screen">
   <div class="toolbar">
     <div class="toolbar-row">
-      <span class="toolbar-label">Search suffix:</span>
+      <span class="toolbar-label">Search:</span>
       <div class="search-wrap">
         <input type="text" id="suffix-input" placeholder="e.g. botn, fjord, sand...">
         <button onclick="doSearch()">Search</button>
       </div>
+      <span class="toolbar-label" style="margin-left:6px">Mode:</span>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-ends" onclick="setMode('ends')">Ends with</button>
+        <button class="mode-btn" id="mode-starts" onclick="setMode('starts')">Starts with</button>
+        <button class="mode-btn" id="mode-contains" onclick="setMode('contains')">Contains</button>
+      </div>
       <button class="btn" id="export-btn" onclick="exportJSON()" style="display:none;margin-left:8px;padding:5px 14px;font-size:0.78rem">⬇ Export JSON</button>
+      <button class="btn" id="export-full-btn" onclick="exportFullJSON()" style="display:none;margin-left:4px;padding:5px 14px;font-size:0.78rem;background:transparent;border:1px solid var(--gold);color:var(--gold)">⬇ Export with names</button>
     </div>
     <div class="toolbar-row" id="fc-row">
       <span class="toolbar-label">Category:</span>
@@ -133,7 +160,7 @@ header h1 em { color:var(--gold); font-style:italic; }
         <input type="text" id="list-filter" placeholder="Filter list...">
       </div>
       <div class="place-list" id="place-list">
-        <div class="no-results">← Search for a suffix</div>
+        <div class="no-results">← Search for a place name</div>
       </div>
       <div class="status-bar" id="status-bar"></div>
     </div>
@@ -142,16 +169,18 @@ header h1 em { color:var(--gold); font-style:italic; }
 
 <script>
 const FC_META = {
-  P: { label:'Town',    color:'#e85d04' },
-  H: { label:'Water',        color:'#2d6a9f' },
-  T: { label:'Terrain',     color:'#6b8c42' },
-  S: { label:'Settlement',  color:'#9b5de5' },
-  A: { label:'Admin',       color:'#c9a84c' },
-  L: { label:'Land',        color:'#8b4513' },
-  V: { label:'Vegetation',  color:'#2d8a4e' },
-  U: { label:'Undersea', color:'#1a6b8a' },
-  R: { label:'Road',         color:'#888888' },
+  P: { label:'Town',       color:'#e85d04' },
+  H: { label:'Water',      color:'#2d6a9f' },
+  T: { label:'Terrain',    color:'#6b8c42' },
+  S: { label:'Settlement', color:'#9b5de5' },
+  A: { label:'Admin',      color:'#c9a84c' },
+  L: { label:'Land',       color:'#8b4513' },
+  V: { label:'Vegetation', color:'#2d8a4e' },
+  U: { label:'Undersea',   color:'#1a6b8a' },
+  R: { label:'Road',       color:'#888888' },
 };
+
+const LIST_LIMIT = 500;
 
 let allPlaces = [];
 let currentSuffix = null;
@@ -159,8 +188,11 @@ let currentMatches = [];
 let activeFCs = new Set();
 let map = null;
 let layerGroup = null;
+let searchMode = 'ends'; // 'ends' | 'starts' | 'contains'
+let userHasZoomed = false;
+let showAll = false;
 
-// File handling
+// ── File handling ────────────────────────────────────────────────
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 dropZone.addEventListener('click', () => fileInput.click());
@@ -169,10 +201,37 @@ dropZone.addEventListener('dragleave', () => dropZone.style.background='');
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.style.background=''; if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
 fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
 
+function reloadFile() {
+  // Reset state
+  allPlaces = [];
+  currentSuffix = null;
+  currentMatches = [];
+  activeFCs = new Set();
+  userHasZoomed = false;
+  searchMode = 'ends';
+  setMode('ends');
+
+  // Reset UI
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('upload-screen').style.display = 'flex';
+  document.getElementById('file-label').textContent = 'Upload a GeoNames file';
+  document.getElementById('reload-btn').style.display = 'none';
+  document.getElementById('suffix-input').value = '';
+  document.getElementById('list-filter').value = '';
+  document.getElementById('export-btn').style.display = 'none';
+  document.getElementById('export-full-btn').style.display = 'none';
+  document.getElementById('fc-row').innerHTML = '<span class="toolbar-label">Category:</span>';
+  fileInput.value = '';
+
+  // Clear map
+  if (layerGroup) layerGroup.clearLayers();
+}
+
 function loadFile(file) {
   document.getElementById('upload-screen').style.display = 'none';
   document.getElementById('loading-screen').style.display = 'flex';
-  document.getElementById('file-info').textContent = file.name + ' · ' + (file.size/1024/1024).toFixed(1) + ' MB';
+  document.getElementById('file-label').textContent = file.name + ' · ' + (file.size/1024/1024).toFixed(1) + ' MB';
+  document.getElementById('reload-btn').style.display = 'inline-block';
   const reader = new FileReader();
   reader.onload = e => setTimeout(() => parse(e.target.result), 50);
   reader.readAsText(file, 'UTF-8');
@@ -205,7 +264,6 @@ function parse(text) {
     document.getElementById('loading-text').textContent = 'Parsing... ' + Math.round(i/total*100) + '%';
     if (i < total) setTimeout(chunk, 0);
     else {
-      // Sort allPlaces by name
       allPlaces.sort((a,b) => a.name.localeCompare(b.name, 'no'));
       const allFCs = [...fcSet].sort();
       allFCs.forEach(fc => activeFCs.add(fc));
@@ -221,6 +279,7 @@ function initApp(allFCs) {
 
   // FC buttons
   const fcRow = document.getElementById('fc-row');
+  fcRow.innerHTML = '<span class="toolbar-label">Category:</span>';
   allFCs.forEach(fc => {
     const meta = FC_META[fc] || { label: fc, color: '#888' };
     const btn = document.createElement('button');
@@ -244,69 +303,105 @@ function initApp(allFCs) {
         btn.style.color = 'var(--ink)';
         btn.style.borderColor = meta.color;
       }
-      if (currentSuffix) { renderList(); renderMarkers(); }
+      if (currentSuffix) { showAll = false; renderList(); renderMarkers(false); }
     });
     fcRow.appendChild(btn);
   });
 
   // Map
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    map = L.map('map', { center: [20, 10], zoom: 2 });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© OpenStreetMap © CARTO', maxZoom: 18
-    }).addTo(map);
-    layerGroup = L.layerGroup().addTo(map);
-    map.invalidateSize();
-  }));
+  if (!map) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      map = L.map('map', { center: [20, 10], zoom: 2 });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap © CARTO', maxZoom: 18
+      }).addTo(map);
+      layerGroup = L.layerGroup().addTo(map);
+      map.invalidateSize();
+      map.on('zoomend moveend', () => { userHasZoomed = true; });
+    }));
+  } else {
+    layerGroup.clearLayers();
+    userHasZoomed = false;
+  }
 
-  // Enter key search
   document.getElementById('suffix-input').addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
   document.getElementById('list-filter').addEventListener('input', renderList);
 }
 
+// ── Mode toggle ─────────────────────────────────────────────────
+function setMode(mode) {
+  searchMode = mode;
+  document.getElementById('mode-ends').classList.toggle('active', mode === 'ends');
+  document.getElementById('mode-starts').classList.toggle('active', mode === 'starts');
+  document.getElementById('mode-contains').classList.toggle('active', mode === 'contains');
+  if (currentSuffix) { doSearch(); }
+}
+
+// ── Search ───────────────────────────────────────────────────────
 function doSearch() {
   const val = document.getElementById('suffix-input').value.trim().toLowerCase();
   if (!val) return;
   currentSuffix = val;
+  userHasZoomed = false; // new search → re-fit map
+  showAll = false;
   document.getElementById('export-btn').style.display = 'inline-block';
+  document.getElementById('export-full-btn').style.display = 'inline-block';
 
-  // Find all places ending with this suffix
-  currentMatches = allPlaces.filter(p => p.name.toLowerCase().endsWith(val));
+  if (searchMode === 'ends') {
+    currentMatches = allPlaces.filter(p => p.name.toLowerCase().endsWith(val));
+  } else if (searchMode === 'starts') {
+    currentMatches = allPlaces.filter(p => p.name.toLowerCase().startsWith(val));
+  } else {
+    currentMatches = allPlaces.filter(p => p.name.toLowerCase().includes(val));
+  }
 
   renderList();
-  renderMarkers();
+  renderMarkers(true);
 }
 
 function getVisible() {
   return currentMatches.filter(p => activeFCs.has(p.fc));
 }
 
+// ── List ─────────────────────────────────────────────────────────
 function renderList() {
   if (!currentSuffix) return;
   const q = document.getElementById('list-filter').value.toLowerCase();
   const visible = getVisible();
   const filtered = q ? visible.filter(p => p.name.toLowerCase().includes(q)) : visible;
+  const truncated = !showAll && filtered.length > LIST_LIMIT;
+  const shown = truncated ? filtered.slice(0, LIST_LIMIT) : filtered;
 
+  const modeLabel = searchMode === 'ends' ? '-' : searchMode === 'starts' ? '' : '~';
   document.getElementById('sidebar-head').textContent =
-    '-' + currentSuffix + ' · ' + visible.length + ' places';
+    (searchMode === 'ends' ? '-' : '') + currentSuffix + (searchMode === 'starts' ? '-' : '') +
+    ' · ' + visible.length + ' places';
 
   const listEl = document.getElementById('place-list');
   listEl.innerHTML = '';
 
-  if (filtered.length === 0) {
+  if (shown.length === 0) {
     listEl.innerHTML = '<div class="no-results">No results</div>';
     document.getElementById('status-bar').textContent = '';
     return;
   }
 
-  filtered.forEach(p => {
+  shown.forEach(p => {
     const item = document.createElement('div');
     item.className = 'place-item';
     const nl = p.name.toLowerCase();
-    const idx = nl.lastIndexOf(currentSuffix);
-    const highlighted = idx >= 0
-      ? p.name.slice(0,idx) + '<em>' + p.name.slice(idx) + '</em>'
-      : p.name;
+    let highlighted;
+    if (searchMode === 'ends') {
+      const idx = nl.lastIndexOf(currentSuffix);
+      highlighted = idx >= 0 ? p.name.slice(0,idx) + '<em>' + p.name.slice(idx) + '</em>' : p.name;
+    } else if (searchMode === 'starts') {
+      highlighted = '<em>' + p.name.slice(0, currentSuffix.length) + '</em>' + p.name.slice(currentSuffix.length);
+    } else {
+      const idx = nl.indexOf(currentSuffix);
+      highlighted = idx >= 0
+        ? p.name.slice(0,idx) + '<em>' + p.name.slice(idx, idx+currentSuffix.length) + '</em>' + p.name.slice(idx+currentSuffix.length)
+        : p.name;
+    }
     const fcMeta = FC_META[p.fc] || { label: p.fc, color: '#888' };
     item.innerHTML =
       '<div class="place-name">' + highlighted + '</div>' +
@@ -317,10 +412,17 @@ function renderList() {
     listEl.appendChild(item);
   });
 
-  document.getElementById('status-bar').textContent = 'Showing ' + filtered.length + ' places';
+  const statusBar = document.getElementById('status-bar');
+  if (truncated) {
+    statusBar.innerHTML = 'Showing ' + LIST_LIMIT + ' of ' + filtered.length +
+      ' — <a href="#" style="color:var(--gold);text-decoration:underline;" onclick="event.preventDefault();showAll=true;renderList()">Show all</a>';
+  } else {
+    statusBar.textContent = 'Showing ' + shown.length + ' places';
+  }
 }
 
-function renderMarkers() {
+// ── Markers ──────────────────────────────────────────────────────
+function renderMarkers(fitBounds) {
   if (!layerGroup) return;
   layerGroup.clearLayers();
   const visible = getVisible();
@@ -331,10 +433,18 @@ function renderMarkers() {
       radius:5, fillColor:color, color:'#1a1a2e', weight:1.2, fillOpacity:0.85
     });
     const nl = p.name.toLowerCase();
-    const idx = nl.lastIndexOf(currentSuffix || '');
-    const hl = idx >= 0
-      ? p.name.slice(0,idx) + '<em style="color:#c9a84c">' + p.name.slice(idx) + '</em>'
-      : p.name;
+    let hl;
+    if (searchMode === 'ends') {
+      const idx = nl.lastIndexOf(currentSuffix || '');
+      hl = idx >= 0 ? p.name.slice(0,idx) + '<em style="color:#c9a84c">' + p.name.slice(idx) + '</em>' : p.name;
+    } else if (searchMode === 'starts') {
+      hl = '<em style="color:#c9a84c">' + p.name.slice(0, currentSuffix.length) + '</em>' + p.name.slice(currentSuffix.length);
+    } else {
+      const idx = nl.indexOf(currentSuffix || '');
+      hl = idx >= 0
+        ? p.name.slice(0,idx) + '<em style="color:#c9a84c">' + p.name.slice(idx, idx+currentSuffix.length) + '</em>' + p.name.slice(idx+currentSuffix.length)
+        : p.name;
+    }
     const fcMeta = FC_META[p.fc] || { label: p.fc };
     marker.bindPopup(
       '<div class="popup-name">' + hl + '</div>' +
@@ -345,7 +455,7 @@ function renderMarkers() {
     layerGroup.addLayer(marker);
   });
 
-  if (visible.length > 0) {
+  if (fitBounds && !userHasZoomed && visible.length > 0) {
     const lats = visible.map(p => p.lat);
     const lngs = visible.map(p => p.lng);
     map.fitBounds(
@@ -355,6 +465,7 @@ function renderMarkers() {
   }
 }
 
+// ── Fly to ───────────────────────────────────────────────────────
 function flyTo(place, itemEl) {
   if (!map) return;
   map.setView([place.lat, place.lng], 12, { animate:true });
@@ -372,21 +483,35 @@ function flyTo(place, itemEl) {
   itemEl.classList.add('active');
   itemEl.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
+
+// ── Export ───────────────────────────────────────────────────────
 function exportJSON() {
   if (!currentSuffix) return;
   const visible = getVisible();
   if (visible.length === 0) return;
+  const json = { customCoordinates: visible.map(p => ({ lat: p.lat, lng: p.lng })) };
+  triggerDownload(json, 'suffix_' + currentSuffix + '_' + visible.length + '_locs.json');
+}
 
+function exportFullJSON() {
+  if (!currentSuffix) return;
+  const visible = getVisible();
+  if (visible.length === 0) return;
   const json = {
-    customCoordinates: visible.map(p => ({ lat: p.lat, lng: p.lng }))
+    customCoordinates: visible.map(p => ({
+      lat: p.lat,
+      lng: p.lng,
+      extra: { name: p.name, type: p.fc_code, category: (FC_META[p.fc] || {label:p.fc}).label, population: p.pop || undefined }
+    }))
   };
+  triggerDownload(json, 'suffix_' + currentSuffix + '_' + visible.length + '_full.json');
+}
 
-  const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+function triggerDownload(obj, filename) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = 'suffix_' + currentSuffix + '_' + visible.length + '_locs.json';
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 </script>
