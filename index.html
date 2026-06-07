@@ -7,7 +7,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root { --ink:#1a1a2e; --paper:#f5f0e8; --gold:#c9a84c; }
@@ -120,10 +119,10 @@ header h1 em { color:var(--gold); font-style:italic; }
   <div class="drop-zone" id="drop-zone">
     <h2>Upload GeoNames file</h2>
     <p>Drag and drop file here, or click</p>
-    <p style="margin-top:6px;font-size:0.72rem;opacity:0.35">NO.txt · SE.txt · IS.txt · BR.txt · etc. (or .zip)</p>
+    <p style="margin-top:6px;font-size:0.72rem;opacity:0.35">NO.txt · SE.txt · IS.txt · BR.txt · etc.</p>
     <p style="margin-top:12px;font-size:0.72rem;opacity:0.5">Download files from <a href="https://download.geonames.org/export/dump/" target="_blank" style="color:var(--gold);text-decoration:underline;" onclick="event.stopPropagation()">download.geonames.org</a></p>
   </div>
-  <input type="file" id="file-input" accept=".txt,.zip">
+  <input type="file" id="file-input" accept=".txt">
   <button class="btn" onclick="document.getElementById('file-input').click()">Choose file</button>
 </div>
 
@@ -233,45 +232,15 @@ function loadFile(file) {
   document.getElementById('loading-screen').style.display = 'flex';
   document.getElementById('file-label').textContent = file.name + ' · ' + (file.size/1024/1024).toFixed(1) + ' MB';
   document.getElementById('reload-btn').style.display = 'inline-block';
-
-  if (file.name.toLowerCase().endsWith('.zip')) {
-    document.getElementById('loading-text').textContent = 'Extracting ZIP...';
-    JSZip.loadAsync(file).then(function(zip) {
-      var txtFile = null;
-      zip.forEach(function(path, entry) {
-        if (!txtFile && path.toLowerCase().endsWith('.txt') && !path.includes('/')) {
-          txtFile = entry;
-        }
-      });
-      if (!txtFile) {
-        // try any .txt
-        zip.forEach(function(path, entry) {
-          if (!txtFile && path.toLowerCase().endsWith('.txt')) txtFile = entry;
-        });
-      }
-      if (!txtFile) {
-        alert('No .txt file found in ZIP.');
-        reloadFile();
-        return;
-      }
-      return txtFile.async('string').then(function(text) {
-        setTimeout(() => parse(text), 50);
-      });
-    }).catch(function(err) {
-      alert('Could not read ZIP: ' + err.message);
-      reloadFile();
-    });
-  } else {
-    const reader = new FileReader();
-    reader.onload = e => setTimeout(() => parse(e.target.result), 50);
-    reader.readAsText(file, 'UTF-8');
-  }
+  const reader = new FileReader();
+  reader.onload = e => setTimeout(() => parse(e.target.result), 50);
+  reader.readAsText(file, 'UTF-8');
 }
 
 function parse(text) {
   allPlaces = [];
   const fcSet = new Set();
-  const lines = text.split('\n');
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const total = lines.length;
   let i = 0;
 
